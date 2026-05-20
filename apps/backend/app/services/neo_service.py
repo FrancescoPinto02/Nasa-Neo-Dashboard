@@ -1,13 +1,16 @@
-from collections.abc import Awaitable
+from collections.abc import Awaitable, Iterable
 from datetime import date
 from typing import Any, Protocol
 
 from app.schemas.neo import (
     NeoCloseApproach,
+    NeoDailyCount,
     NeoDetailResponse,
     NeoFeedResponse,
+    NeoHazardousDistributionItem,
     NeoOrbitalData,
     NeoSortBy,
+    NeoStatsResponse,
     NeoSummary,
     SortOrder,
 )
@@ -93,6 +96,27 @@ class NeoService:
         payload = await self._nasa_client.get_neo_by_id(neo_id)
 
         return _to_neo_detail(payload)
+
+    async def get_neo_stats(
+            self,
+            *,
+            start_date: date,
+            end_date: date,
+    ) -> NeoStatsResponse:
+        """Return aggregated dashboard statistics for a date range.
+
+        The method intentionally reuses list_neos so that validation, chunking,
+        NASA fetching, caching and normalization remain centralized in one place.
+        """
+        feed = await self.list_neos(
+            start_date=start_date,
+            end_date=end_date,
+            hazardous=None,
+            sort_by=NeoSortBy.DATE,
+            sort_order=SortOrder.ASC,
+        )
+
+        return _build_neo_stats(feed)
 
 
 def _extract_summaries(payload: dict[str, Any]) -> list[NeoSummary]:
@@ -366,3 +390,122 @@ def _average_optional(left: float | None, right: float | None) -> float | None:
         return None
 
     return (left + right) / 2
+
+
+def _build_neo_stats(feed: NeoFeedResponse) -> NeoStatsResponse:
+    """Build chart-friendly statistics from a normalized NEO feed."""
+    results = feed.results
+
+    hazardous_count = sum(1 for neo in results if neo.is_potentially_hazardous)
+    non_hazardous_count = len(results) - hazardous_count
+
+    average_diameter_m = _average_values(
+        neo.diameter_avg_m for neo in results
+    )
+
+    closest_neo = _min_by_optional_float(results, "miss_distance_km")
+    fastest_neo = _max_by_optional_float(results, "relative_velocity_kmh")
+    largest_neo = _max_by_optional_float(results, "diameter_avg_m")
+
+    return NeoStatsResponse(
+        start_date=feed.start_date,
+        end_date=feed.end_date,
+        total_count=len(results),
+        hazardous_count=hazardous_count,
+        non_hazardous_count=non_hazardous_count,
+        average_diameter_m=average_diameter_m,
+        min_miss_distance_km=(
+            closest_neo.miss_distance_km if closest_neo is not None else None
+        ),
+        max_relative_velocity_kmh=(
+            fastest_neo.relative_velocity_kmh if fastest_neo is not None else None
+        ),
+        closest_neo=closest_neo,
+        fastest_neo=fastest_neo,
+        largest_neo=largest_neo,
+        daily_counts=_build_daily_counts(
+            start_date=feed.start_date,
+            end_date=feed.end_date,
+            results=results,
+        ),
+        hazardous_distribution=[
+            NeoHazardousDistributionItem(
+                label="Hazardous",
+                value=hazardous_count,
+            ),
+            NeoHazardousDistributionItem(
+                label="Non hazardous",
+                value=non_hazardous_count,
+            ),
+        ],
+    )
+
+
+def _build_daily_counts(
+    *,
+    start_date: date,
+    end_date: date,
+    results: list[NeoSummary],
+) -> list[NeoDailyCount]:
+    """Build a complete daily count series, including days with zero NEOs."""
+    counts_by_date: dict[date, int] = {}
+
+    for neo in results:
+        counts_by_date[neo.close_approach_date] = (
+            counts_by_date.get(neo.close_approach_date, 0) + 1
+        )
+
+    daily_counts: list[NeoDailyCount] = []
+
+    current_date = start_date
+
+    while current_date <= end_date:
+        daily_counts.append(
+            NeoDailyCount(
+                date=current_date,
+                count=counts_by_date.get(current_date, 0),
+            )
+        )
+        current_date = current_date.fromordinal(current_date.toordinal() + 1)
+
+    return daily_counts
+
+
+def _average_values(values: Iterable[float | None]) -> float | None:
+    """Average non-null numeric values."""
+    numeric_values = [value for value in values if value is not None]
+
+    if not numeric_values:
+        return None
+
+    return sum(numeric_values) / len(numeric_values)
+
+
+def _min_by_optional_float(
+    results: list[NeoSummary],
+    field_name: str,
+) -> NeoSummary | None:
+    """Return the NEO with the minimum numeric value for a nullable field."""
+    candidates = [
+        neo for neo in results if isinstance(getattr(neo, field_name), int | float)
+    ]
+
+    if not candidates:
+        return None
+
+    return min(candidates, key=lambda neo: getattr(neo, field_name))
+
+
+def _max_by_optional_float(
+    results: list[NeoSummary],
+    field_name: str,
+) -> NeoSummary | None:
+    """Return the NEO with the maximum numeric value for a nullable field."""
+    candidates = [
+        neo for neo in results if isinstance(getattr(neo, field_name), int | float)
+    ]
+
+    if not candidates:
+        return None
+
+    return max(candidates, key=lambda neo: getattr(neo, field_name))

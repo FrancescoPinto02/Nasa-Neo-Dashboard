@@ -105,3 +105,39 @@ class NeoDetailResponse(BaseModel):
 
     orbital_data: NeoOrbitalData | None = None
     close_approaches: list[NeoCloseApproach]
+
+
+class NeoDailyCount(BaseModel):
+    """Number of NEOs grouped by close approach date."""
+
+    date: date
+    count: int
+
+
+class NeoHazardousDistributionItem(BaseModel):
+    """Chart-friendly item representing hazardous/non-hazardous distribution."""
+
+    label: str
+    value: int
+
+
+class NeoStatsResponse(BaseModel):
+    """Aggregated statistics for the NEO dashboard."""
+
+    start_date: date
+    end_date: date
+
+    total_count: int
+    hazardous_count: int
+    non_hazardous_count: int
+
+    average_diameter_m: float | None = None
+    min_miss_distance_km: float | None = None
+    max_relative_velocity_kmh: float | None = None
+
+    closest_neo: NeoSummary | None = None
+    fastest_neo: NeoSummary | None = None
+    largest_neo: NeoSummary | None = None
+
+    daily_counts: list[NeoDailyCount]
+    hazardous_distribution: list[NeoHazardousDistributionItem]
