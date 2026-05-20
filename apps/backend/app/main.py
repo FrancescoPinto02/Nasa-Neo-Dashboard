@@ -3,9 +3,11 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.v1.router import api_router
 from app.core.config import get_settings
+from app.core.exception_handlers import register_exception_handlers
 
 
 def create_app() -> FastAPI:
+    """Create and configure the FastAPI application."""
     settings = get_settings()
 
     app = FastAPI(
@@ -22,6 +24,8 @@ def create_app() -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
+
+    register_exception_handlers(app)
 
     app.include_router(api_router, prefix="/api/v1")
 
