@@ -24,6 +24,9 @@ class Settings(BaseSettings):
     cache_ttl_seconds: int = 21_600
     cache_disk_directory: str = ".cache/nasa-neo"
 
+    log_level: str = "INFO"
+    log_json: bool = False
+
     redis_url: str = "redis://localhost:6379/0"
 
     cors_allowed_origins: list[str] = ["http://localhost:3000"]

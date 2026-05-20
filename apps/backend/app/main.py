@@ -4,11 +4,18 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api.v1.router import api_router
 from app.core.config import get_settings
 from app.core.exception_handlers import register_exception_handlers
+from app.core.logging import configure_logging
+from app.middleware.request_logging import RequestLoggingMiddleware
 
 
 def create_app() -> FastAPI:
     """Create and configure the FastAPI application."""
     settings = get_settings()
+
+    configure_logging(
+        log_level=settings.log_level,
+        json_logs=settings.log_json,
+    )
 
     app = FastAPI(
         title=settings.app_name,
@@ -16,6 +23,8 @@ def create_app() -> FastAPI:
         debug=settings.app_debug,
         description="Backend API for NASA Near Earth Objects dashboard.",
     )
+
+    app.add_middleware(RequestLoggingMiddleware)
 
     app.add_middleware(
         CORSMiddleware,

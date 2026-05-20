@@ -2,7 +2,12 @@ from collections.abc import Awaitable, Callable
 from datetime import date
 from typing import Any, Protocol
 
+import structlog
+
 from app.repositories.cache_repository import CacheRepository
+
+
+logger = structlog.get_logger(__name__)
 
 
 class NasaNeoWsRawClient(Protocol):
@@ -16,8 +21,7 @@ class NasaNeoWsRawClient(Protocol):
 
 
 class CachedNasaNeoWsClient:
-    """
-    Cache-aware NASA NeoWs client.
+    """Cache-aware NASA NeoWs client.
 
     This class keeps caching out of the service layer. From the service point of
     view, this object behaves like the real NASA client.
@@ -61,13 +65,28 @@ class CachedNasaNeoWsClient:
         cached_payload = await self._cache_repository.get_json(cache_key)
 
         if cached_payload is not None:
+            logger.info(
+                "cache.hit",
+                cache_key=cache_key,
+            )
             return cached_payload
+
+        logger.info(
+            "cache.miss",
+            cache_key=cache_key,
+        )
 
         payload = await fetcher()
 
         await self._cache_repository.set_json(
             cache_key,
             payload,
+            ttl_seconds=self._ttl_seconds,
+        )
+
+        logger.info(
+            "cache.stored",
+            cache_key=cache_key,
             ttl_seconds=self._ttl_seconds,
         )
 
