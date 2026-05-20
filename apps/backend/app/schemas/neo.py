@@ -54,3 +54,54 @@ class NeoFeedResponse(BaseModel):
     end_date: date
     count: int
     results: list[NeoSummary]
+
+
+class NeoCloseApproach(BaseModel):
+    """Normalized close approach information for a NEO detail page."""
+
+    close_approach_date: date | None = None
+    close_approach_date_full: str | None = None
+    epoch_date_close_approach: int | None = None
+
+    relative_velocity_kmh: float | None = None
+    miss_distance_km: float | None = None
+
+    orbiting_body: str | None = None
+
+
+class NeoOrbitalData(BaseModel):
+    """Normalized orbital information returned by NASA NeoWs."""
+
+    orbit_id: str | None = None
+    orbit_determination_date: str | None = None
+
+    first_observation_date: date | None = None
+    last_observation_date: date | None = None
+
+    data_arc_in_days: int | None = None
+    observations_used: int | None = None
+
+    orbit_class_type: str | None = None
+    orbit_class_description: str | None = None
+    orbit_class_range: str | None = None
+
+
+class NeoDetailResponse(BaseModel):
+    """Detailed normalized information for a single Near Earth Object."""
+
+    id: str
+    name: str
+    designation: str | None = None
+
+    nasa_jpl_url: str | None = None
+    absolute_magnitude_h: float | None = None
+
+    is_potentially_hazardous: bool
+    is_sentry_object: bool
+
+    diameter_min_m: float | None = None
+    diameter_max_m: float | None = None
+    diameter_avg_m: float | None = None
+
+    orbital_data: NeoOrbitalData | None = None
+    close_approaches: list[NeoCloseApproach]

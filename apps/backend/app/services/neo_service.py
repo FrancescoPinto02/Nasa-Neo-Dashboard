@@ -2,15 +2,26 @@ from collections.abc import Awaitable
 from datetime import date
 from typing import Any, Protocol
 
-from app.schemas.neo import NeoFeedResponse, NeoSortBy, NeoSummary, SortOrder
+from app.schemas.neo import (
+    NeoCloseApproach,
+    NeoDetailResponse,
+    NeoFeedResponse,
+    NeoOrbitalData,
+    NeoSortBy,
+    NeoSummary,
+    SortOrder,
+)
 from app.utils.dates import iter_date_chunks, validate_date_range
 
 
-class NasaFeedClient(Protocol):
-    """Protocol used to make NeoService independent from a concrete NASA client."""
+class NasaNeoClient(Protocol):
+    """Protocol used to keep NeoService independent from concrete NASA clients."""
 
     def get_feed(self, start_date: date, end_date: date) -> Awaitable[dict[str, Any]]:
         """Fetch raw NASA feed data for an inclusive date range."""
+
+    def get_neo_by_id(self, neo_id: str) -> Awaitable[dict[str, Any]]:
+        """Fetch raw NASA detail data for one Near Earth Object."""
 
 
 class NeoService:
@@ -19,7 +30,7 @@ class NeoService:
     def __init__(
         self,
         *,
-        nasa_client: NasaFeedClient,
+        nasa_client: NasaNeoClient,
         max_chunk_days: int,
         max_query_range_days: int,
     ) -> None:
@@ -77,6 +88,12 @@ class NeoService:
             results=results,
         )
 
+    async def get_neo_detail(self, *, neo_id: str) -> NeoDetailResponse:
+        """Return normalized detail information for a single NEO."""
+        payload = await self._nasa_client.get_neo_by_id(neo_id)
+
+        return _to_neo_detail(payload)
+
 
 def _extract_summaries(payload: dict[str, Any]) -> list[NeoSummary]:
     """Extract and normalize NEO summaries from a raw NASA feed payload."""
@@ -104,7 +121,7 @@ def _extract_summaries(payload: dict[str, Any]) -> list[NeoSummary]:
 
 
 def _to_neo_summary(raw_neo: dict[str, Any], close_approach_date: date) -> NeoSummary:
-    """Convert one NASA NEO object into our frontend-friendly schema."""
+    """Convert one NASA feed object into our frontend-friendly summary schema."""
     approach = _select_close_approach(raw_neo, close_approach_date)
 
     miss_distance = approach.get("miss_distance", {})
@@ -129,6 +146,105 @@ def _to_neo_summary(raw_neo: dict[str, Any], close_approach_date: date) -> NeoSu
         diameter_min_m=diameter_min_m,
         diameter_max_m=diameter_max_m,
         diameter_avg_m=diameter_avg_m,
+    )
+
+
+def _to_neo_detail(raw_neo: dict[str, Any]) -> NeoDetailResponse:
+    """Convert one NASA detail object into our frontend-friendly detail schema."""
+    diameter_min_m, diameter_max_m = _extract_diameter_meters(raw_neo)
+    diameter_avg_m = _average_optional(diameter_min_m, diameter_max_m)
+
+    return NeoDetailResponse(
+        id=str(raw_neo.get("id", "")),
+        name=str(raw_neo.get("name", "")),
+        designation=_to_optional_str(raw_neo.get("designation")),
+        nasa_jpl_url=_to_optional_str(raw_neo.get("nasa_jpl_url")),
+        absolute_magnitude_h=_to_float(raw_neo.get("absolute_magnitude_h")),
+        is_potentially_hazardous=bool(
+            raw_neo.get("is_potentially_hazardous_asteroid", False)
+        ),
+        is_sentry_object=bool(raw_neo.get("is_sentry_object", False)),
+        diameter_min_m=diameter_min_m,
+        diameter_max_m=diameter_max_m,
+        diameter_avg_m=diameter_avg_m,
+        orbital_data=_to_orbital_data(raw_neo.get("orbital_data")),
+        close_approaches=_extract_close_approaches(raw_neo),
+    )
+
+
+def _to_orbital_data(raw_orbital_data: Any) -> NeoOrbitalData | None:
+    """Normalize NASA orbital data if available."""
+    if not isinstance(raw_orbital_data, dict):
+        return None
+
+    orbit_class = raw_orbital_data.get("orbit_class")
+
+    if not isinstance(orbit_class, dict):
+        orbit_class = {}
+
+    return NeoOrbitalData(
+        orbit_id=_to_optional_str(raw_orbital_data.get("orbit_id")),
+        orbit_determination_date=_to_optional_str(
+            raw_orbital_data.get("orbit_determination_date")
+        ),
+        first_observation_date=_to_date(
+            raw_orbital_data.get("first_observation_date")
+        ),
+        last_observation_date=_to_date(
+            raw_orbital_data.get("last_observation_date")
+        ),
+        data_arc_in_days=_to_int(raw_orbital_data.get("data_arc_in_days")),
+        observations_used=_to_int(raw_orbital_data.get("observations_used")),
+        orbit_class_type=_to_optional_str(orbit_class.get("orbit_class_type")),
+        orbit_class_description=_to_optional_str(
+            orbit_class.get("orbit_class_description")
+        ),
+        orbit_class_range=_to_optional_str(orbit_class.get("orbit_class_range")),
+    )
+
+
+def _extract_close_approaches(raw_neo: dict[str, Any]) -> list[NeoCloseApproach]:
+    """Extract and normalize all close approach records for a NEO."""
+    approaches = raw_neo.get("close_approach_data")
+
+    if not isinstance(approaches, list):
+        return []
+
+    normalized_approaches: list[NeoCloseApproach] = []
+
+    for approach in approaches:
+        if not isinstance(approach, dict):
+            continue
+
+        relative_velocity = approach.get("relative_velocity")
+        miss_distance = approach.get("miss_distance")
+
+        if not isinstance(relative_velocity, dict):
+            relative_velocity = {}
+
+        if not isinstance(miss_distance, dict):
+            miss_distance = {}
+
+        normalized_approaches.append(
+            NeoCloseApproach(
+                close_approach_date=_to_date(approach.get("close_approach_date")),
+                close_approach_date_full=_to_optional_str(
+                    approach.get("close_approach_date_full")
+                ),
+                epoch_date_close_approach=_to_int(
+                    approach.get("epoch_date_close_approach")
+                ),
+                relative_velocity_kmh=_to_float(
+                    relative_velocity.get("kilometers_per_hour")
+                ),
+                miss_distance_km=_to_float(miss_distance.get("kilometers")),
+                orbiting_body=_to_optional_str(approach.get("orbiting_body")),
+            )
+        )
+
+    return sorted(
+        normalized_approaches,
+        key=lambda item: item.close_approach_date or date.max,
     )
 
 
@@ -196,6 +312,7 @@ def _sort_results(
 
 
 def _sort_field_name(sort_by: NeoSortBy) -> str:
+    """Map public sort options to internal NeoSummary field names."""
     field_map = {
         NeoSortBy.DATE: "close_approach_date",
         NeoSortBy.DISTANCE: "miss_distance_km",
@@ -211,6 +328,25 @@ def _to_float(value: Any) -> float | None:
     try:
         return float(value)
     except (TypeError, ValueError):
+        return None
+
+
+def _to_int(value: Any) -> int | None:
+    """Convert NASA string/number values to int, returning None on failure."""
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _to_date(value: Any) -> date | None:
+    """Convert an ISO date string to date, returning None on failure."""
+    if not isinstance(value, str):
+        return None
+
+    try:
+        return date.fromisoformat(value)
+    except ValueError:
         return None
 
 

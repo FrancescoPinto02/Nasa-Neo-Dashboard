@@ -1,10 +1,10 @@
 from datetime import date
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Path, Query, status
 
 from app.api.deps import get_neo_service
 from app.core.errors import ExternalServiceError, InvalidDateRangeError
-from app.schemas.neo import NeoFeedResponse, NeoSortBy, SortOrder
+from app.schemas.neo import NeoDetailResponse, NeoFeedResponse, NeoSortBy, SortOrder
 from app.services.neo_service import NeoService
 
 
@@ -49,6 +49,25 @@ async def list_neos(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(exc),
         ) from exc
+    except ExternalServiceError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=str(exc),
+        ) from exc
+
+
+@router.get("/neos/{neo_id}", response_model=NeoDetailResponse)
+async def get_neo_detail(
+    neo_id: str = Path(
+        ...,
+        min_length=1,
+        description="NASA/JPL Small-Body database ID.",
+    ),
+    neo_service: NeoService = Depends(get_neo_service),
+) -> NeoDetailResponse:
+    """Return detailed normalized information for one Near Earth Object."""
+    try:
+        return await neo_service.get_neo_detail(neo_id=neo_id)
     except ExternalServiceError as exc:
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
