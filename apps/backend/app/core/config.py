@@ -29,20 +29,20 @@ class Settings(BaseSettings):
 
     redis_url: str = "redis://localhost:6379/0"
 
-    cors_allowed_origins: list[str] = ["http://localhost:3000"]
+    cors_allowed_origins: str = "http://localhost:3000"
 
-    @field_validator("cors_allowed_origins", mode="before")
-    @classmethod
-    def parse_cors_allowed_origins(cls, value: Any) -> list[str]:
-        """Parse CORS origins from either a comma-separated string or a list."""
+    @property
+    def cors_origins(self) -> list[str]:
+        """Return CORS origins parsed from a comma-separated string.
 
-        if isinstance(value, str):
-            return [origin.strip() for origin in value.split(",") if origin.strip()]
-
-        if isinstance(value, list):
-            return value
-
-        return ["http://localhost:3000"]
+        Environment variables are plain strings, so this avoids JSON parsing issues
+        in Docker, local shells and deployment platforms.
+        """
+        return [
+            origin.strip()
+            for origin in self.cors_allowed_origins.split(",")
+            if origin.strip()
+        ]
 
     model_config = SettingsConfigDict(
         env_file=".env",
