@@ -47,4 +47,4 @@ services:
         value: /tmp/nasa-neo-cache
 
       - key: CORS_ALLOWED_ORIGINS
-        value: https://FrancescoPinto02.github.io
+        value: https://francescopinto02.github.io
