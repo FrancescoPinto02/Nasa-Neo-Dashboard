@@ -1,5 +1,6 @@
 import { apiFetch } from "@/lib/api/client";
 import type {
+    NeoDetailsResponse,
     NeoFeedQuery,
     NeoFeedResponse,
     NeoStatsQuery,
@@ -25,6 +26,12 @@ export function getNeoStats(query: NeoStatsQuery): Promise<NeoStatsResponse> {
     });
 
     return apiFetch<NeoStatsResponse>(`/neos/stats?${searchParams.toString()}`);
+}
+
+export function getNeoDetails(
+    neoId: string,
+): Promise<NeoDetailsResponse> {
+    return apiFetch<NeoDetailsResponse>(`/neos/${neoId}`);
 }
 
 function buildSearchParams(

@@ -9,6 +9,7 @@ import {
     formatMeters,
 } from "@/lib/formatters";
 import type { NeoSummary } from "@/types/neo";
+import Link from "next/link";
 
 interface NeoTableProps {
     neos: NeoSummary[];
@@ -62,7 +63,12 @@ export function NeoTable({ neos }: NeoTableProps) {
                             >
                                 <TableCell>
                                     <div>
-                                        <p className="font-bold text-slate-950">{neo.name}</p>
+                                        <Link
+                                            href={`/neos/${neo.id}`}
+                                            className="font-bold text-slate-950 transition hover:text-blue-700"
+                                        >
+                                            {neo.name}
+                                        </Link>
                                         <p className="text-xs text-slate-500">ID {neo.id}</p>
                                     </div>
                                 </TableCell>

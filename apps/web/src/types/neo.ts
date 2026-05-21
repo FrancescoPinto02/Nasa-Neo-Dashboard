@@ -58,6 +58,50 @@ export interface NeoStatsResponse {
     hazardous_distribution: NeoHazardousDistributionItem[];
 }
 
+export interface NeoOrbitalData {
+    orbit_id: string | null;
+    orbit_determination_date: string | null;
+
+    first_observation_date: string | null;
+    last_observation_date: string | null;
+
+    data_arc_in_days: number | null;
+    observations_used: number | null;
+
+    orbit_class_type: string | null;
+    orbit_class_description: string | null;
+    orbit_class_range: string | null;
+}
+
+export interface NeoCloseApproach {
+    close_approach_date: string | null;
+    close_approach_date_full: string | null;
+    epoch_date_close_approach: number | null;
+
+    relative_velocity_kmh: number | null;
+    miss_distance_km: number | null;
+
+    orbiting_body: string | null;
+}
+
+export interface NeoDetailsResponse {
+    id: string;
+    name: string;
+    designation: string | null;
+
+    nasa_jpl_url: string | null;
+    absolute_magnitude_h: number | null;
+
+    is_potentially_hazardous: boolean;
+    is_sentry_object: boolean;
+
+    diameter_min_m: number | null;
+    diameter_max_m: number | null;
+    diameter_avg_m: number | null;
+
+    orbital_data: NeoOrbitalData | null;
+    close_approaches: NeoCloseApproach[];
+}
 export interface NeoFeedQuery {
     startDate: string;
     endDate: string;
