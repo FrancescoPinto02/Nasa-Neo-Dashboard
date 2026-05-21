@@ -64,7 +64,7 @@ export function NeoTable({ neos }: NeoTableProps) {
                                 <TableCell>
                                     <div>
                                         <Link
-                                            href={`/neos/${neo.id}`}
+                                            href={`/neo?neoId=${neo.id}`}
                                             className="font-bold text-slate-950 transition hover:text-blue-700"
                                         >
                                             {neo.name}

@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 
 import { NeoCloseApproachesTable } from "@/components/neos/NeoCloseApproachesTable";
 import { NeoDetailsHero } from "@/components/neos/NeoDetailsHero";
@@ -14,36 +14,54 @@ import { ApiClientError } from "@/lib/api/client";
 import { getNeoDetails } from "@/lib/api/neos";
 import type { NeoDetailsResponse } from "@/types/neo";
 
-export default function NeoDetailsPage() {
-    const params = useParams();
-
-    const neoId = String(params.neoId);
+export function NeoDetailsClient() {
+    const searchParams = useSearchParams();
+    const neoId = searchParams.get("neoId");
 
     const [neo, setNeo] = useState<NeoDetailsResponse | null>(null);
-
-    const [isLoading, setIsLoading] = useState(true);
-    const [errorMessage, setErrorMessage] = useState<string | null>(null);
+    const [isLoading, setIsLoading] = useState(Boolean(neoId));
+    const [errorMessage, setErrorMessage] = useState<string | null>(
+        neoId ? null : "ID NEO mancante nella URL.",
+    );
 
     useEffect(() => {
+        let isMounted = true;
+
         async function loadNeoDetails() {
-            setIsLoading(true);
-            setErrorMessage(null);
+            if (!neoId) {
+                return;
+            }
 
             try {
                 const response = await getNeoDetails(neoId);
+
+                if (!isMounted) {
+                    return;
+                }
+
                 setNeo(response);
             } catch (error) {
+                if (!isMounted) {
+                    return;
+                }
+
                 if (error instanceof ApiClientError) {
                     setErrorMessage(error.message);
                 } else {
                     setErrorMessage("Si è verificato un errore imprevisto.");
                 }
             } finally {
-                setIsLoading(false);
+                if (isMounted) {
+                    setIsLoading(false);
+                }
             }
         }
 
         void loadNeoDetails();
+
+        return () => {
+            isMounted = false;
+        };
     }, [neoId]);
 
     return (
@@ -76,9 +94,7 @@ export default function NeoDetailsPage() {
                     <>
                         <NeoDetailsHero neo={neo} />
                         <NeoOrbitCard orbitalData={neo.orbital_data} />
-                        <NeoCloseApproachesTable
-                            approaches={neo.close_approaches}
-                        />
+                        <NeoCloseApproachesTable approaches={neo.close_approaches} />
                     </>
                 ) : null}
             </div>
