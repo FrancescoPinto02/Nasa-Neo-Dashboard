@@ -1,0 +1,50 @@
+services:
+  - type: web
+    name: nasa-neo-backend
+    runtime: docker
+    plan: free
+
+    dockerfilePath: ./apps/backend/Dockerfile
+    dockerContext: ./apps/backend
+
+    healthCheckPath: /api/v1/health
+
+    envVars:
+      - key: APP_ENV
+        value: production
+
+      - key: APP_DEBUG
+        value: "false"
+
+      - key: LOG_LEVEL
+        value: INFO
+
+      - key: LOG_JSON
+        value: "true"
+
+      - key: NASA_API_KEY
+        sync: false
+
+      - key: NASA_NEOWS_BASE_URL
+        value: https://api.nasa.gov/neo/rest/v1
+
+      - key: NASA_REQUEST_TIMEOUT_SECONDS
+        value: "10"
+
+      - key: NASA_MAX_CHUNK_DAYS
+        value: "7"
+
+      - key: APP_MAX_QUERY_RANGE_DAYS
+        value: "90"
+
+      - key: CACHE_BACKEND
+        value: disk
+
+      - key: CACHE_TTL_SECONDS
+        value: "21600"
+
+      - key: CACHE_DISK_DIRECTORY
+        value: /tmp/nasa-neo-cache
+
+      - key: CORS_ALLOWED_ORIGINS
+        value: https://FrancescoPinto02.github.io
