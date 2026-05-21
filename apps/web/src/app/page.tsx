@@ -34,43 +34,72 @@ export default function HomePage() {
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
+  async function fetchDashboardData() {
+    const hazardousFilter = hazardous === "all" ? null : hazardous === "true";
+
+    return Promise.all([
+      getNeoFeed({
+        startDate,
+        endDate,
+        hazardous: hazardousFilter,
+        sortBy,
+        sortOrder,
+      }),
+      getNeoStats({
+        startDate,
+        endDate,
+      }),
+    ]);
+  }
+
   async function loadDashboardData() {
     setIsLoading(true);
     setErrorMessage(null);
 
     try {
-      const hazardousFilter =
-          hazardous === "all" ? null : hazardous === "true";
-
-      const [feedResponse, statsResponse] = await Promise.all([
-        getNeoFeed({
-          startDate,
-          endDate,
-          hazardous: hazardousFilter,
-          sortBy,
-          sortOrder,
-        }),
-        getNeoStats({
-          startDate,
-          endDate,
-        }),
-      ]);
+      const [feedResponse, statsResponse] = await fetchDashboardData();
 
       setFeed(feedResponse);
       setStats(statsResponse);
     } catch (error) {
-      if (error instanceof ApiClientError) {
-        setErrorMessage(error.message);
-      } else {
-        setErrorMessage("Si è verificato un errore imprevisto.");
-      }
+      setErrorMessage(getErrorMessage(error));
     } finally {
       setIsLoading(false);
     }
   }
 
   useEffect(() => {
-    void loadDashboardData();
+    let isMounted = true;
+
+    async function loadInitialDashboardData() {
+      try {
+        const [feedResponse, statsResponse] = await fetchDashboardData();
+
+        if (!isMounted) {
+          return;
+        }
+
+        setFeed(feedResponse);
+        setStats(statsResponse);
+      } catch (error) {
+        if (!isMounted) {
+          return;
+        }
+
+        setErrorMessage(getErrorMessage(error));
+      } finally {
+        if (isMounted) {
+          setIsLoading(false);
+        }
+      }
+    }
+
+    void loadInitialDashboardData();
+
+    return () => {
+      isMounted = false;
+    };
+
     // Carichiamo i dati iniziali una sola volta.
     // I filtri vengono applicati tramite submit del form.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -122,6 +151,14 @@ export default function HomePage() {
         </div>
       </main>
   );
+}
+
+function getErrorMessage(error: unknown): string {
+  if (error instanceof ApiClientError) {
+    return error.message;
+  }
+
+  return "Si è verificato un errore imprevisto.";
 }
 
 function Hero() {
